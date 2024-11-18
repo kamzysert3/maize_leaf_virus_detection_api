@@ -19,8 +19,22 @@ import base64
 # import nest_asyncio
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load YOLO model
-model = YOLO('./maize_leaf_model.pt')
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info("Starting API...")
+# Model loading
+try:
+    logger.info("Loading model...")
+    # Load YOLO model
+    model = YOLO('./maize_leaf_model.pt')
+    logger.info("Model loaded successfully.")
+except Exception as e:
+    logger.error(f"Error loading model: {e}")
+    raise
+logger.info("API started successfully.")
 
 app = FastAPI()
 
@@ -32,6 +46,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Maize Leaf Virus Detection API"}
 
 def read_image(file) -> np.ndarray:
     image = np.array(Image.open(BytesIO(file)).convert("RGB"))
