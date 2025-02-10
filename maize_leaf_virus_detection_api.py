@@ -9,74 +9,81 @@ Original file is located at
 
 # !pip install fastapi uvicorn opencv-python-headless ultralytics python-multipart pyngrok
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import cv2
 import numpy as np
-from io import BytesIO
 from PIL import Image
+import io
 import base64
-# import nest_asyncio
-from fastapi.middleware.cors import CORSMiddleware
-
 import logging
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-logger.info("Starting API...")
-# Model loading
-try:
-    logger.info("Loading model...")
-    # Load YOLO model
-    model = YOLO('./maize_leaf_model.pt')
-    logger.info("Model loaded successfully.")
-except Exception as e:
-    logger.error(f"Error loading model: {e}")
-    raise
-logger.info("API started successfully.")
-
 app = FastAPI()
 
-# Configure CORS
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Maize Leaf Virus Detection API"}
+# Load model once when starting server
+try:
+    model = YOLO('./maize_leaf_model - Copy.pt')
+except Exception as e:
+    logger.error(f"Failed to load model: {e}")
+    raise
 
-def read_image(file) -> np.ndarray:
-    image = np.array(Image.open(BytesIO(file)).convert("RGB"))
-    return image
+def process_image(image_bytes: bytes) -> str:
+    try:
+        # Convert bytes to image
+        image = Image.open(io.BytesIO(image_bytes))
+        image_np = np.array(image)
+        
+        # Run detection
+        results = model(image_np)
+        
+        # Process results
+        result_image = results[0].plot()
+        
+        # Convert to base64
+        _, buffer = cv2.imencode('.jpg', result_image)
+        image_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        return image_base64
+    
+    except Exception as e:
+        logger.error(f"Image processing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict/")
 async def predict(file: UploadFile = File(...)):
-    # Read image file
-    image_data = await file.read()
-    image = read_image(image_data)
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    try:
+        contents = await file.read()
+        processed_image = process_image(contents)
+        
+        return {
+            "success": True,
+            "image": processed_image
+        }
+    
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # Run YOLO model inference
-    results = model(image)
+@app.get("/")
+async def health_check():
+    return {"status": "healthy"}
 
-    # Convert processed image to base64 to return to frontend
-    _, buffer = cv2.imencode('.jpg', results[0].plot())
-    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-
-    return {"image": jpg_as_text}
-
-# nest_asyncio.apply()
-
-# from pyngrok import ngrok
-# !ngrok config add-authtoken 2lF5wXiCnwiL7Gw02aZYf670KtN_6cgH5KX53byFqAiJbH7e6
-# public_url = ngrok.connect(8000)
-# print(f"Public URL: {public_url}")
-
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
