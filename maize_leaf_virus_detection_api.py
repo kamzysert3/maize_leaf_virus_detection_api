@@ -53,7 +53,7 @@ def process_image(image_bytes: bytes) -> str:
         _, buffer = cv2.imencode('.jpg', result_image)
         image_base64 = base64.b64encode(buffer).decode('utf-8')
         
-        return max_label, max_score
+        return image_base64, max_label, max_score
     
     except Exception as e:
         logger.error(f"Image processing error: {e}")
@@ -66,9 +66,11 @@ async def predict(file: UploadFile = File(...)):
     
     try:
         contents = await file.read()
-        prediction, confidence_level = process_image(contents)
+        processed_image, prediction, confidence_level = process_image(contents)
         
         return {
+            "success": True,
+            "image": processed_image,
             "prediction": prediction,
             "confidence_level": confidence_level
         }
