@@ -59,7 +59,7 @@ def process_image(image_bytes: bytes) -> str:
         logger.error(f"Image processing error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/predict/")
+@app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
