@@ -40,12 +40,20 @@ def process_image(image_bytes: bytes) -> str:
         
         # Process results
         result_image = results[0].plot()
+        scores = results[0].probs.data.cpu().numpy() 
+
+        # Find the index of the maximum confidence score
+        max_index = np.argmax(scores)
+
+        # Retrieve the corresponding label and confidence score
+        max_label = results[0].names[int(max_index)]
+        max_score = scores[max_index]
         
         # Convert to base64
         _, buffer = cv2.imencode('.jpg', result_image)
         image_base64 = base64.b64encode(buffer).decode('utf-8')
         
-        return image_base64
+        return image_base64, max_label, max_score
     
     except Exception as e:
         logger.error(f"Image processing error: {e}")
@@ -58,11 +66,13 @@ async def predict(file: UploadFile = File(...)):
     
     try:
         contents = await file.read()
-        processed_image = process_image(contents)
+        processed_image, prediction, confidence_level = process_image(contents)
         
         return {
             "success": True,
-            "image": processed_image
+            "image": processed_image,
+            "prediction": prediction,
+            "confidence_level": confidence_level
         }
     
     except Exception as e:
