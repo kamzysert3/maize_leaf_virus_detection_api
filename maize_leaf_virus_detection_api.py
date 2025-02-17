@@ -24,7 +24,7 @@ app.add_middleware(
 
 # Load model once when starting server
 try:
-    model = YOLO('./maize_leaf_model - Copy.pt')
+    model = YOLO('./maize_leaf_model.pt')
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
     raise
@@ -47,7 +47,7 @@ def process_image(image_bytes: bytes) -> str:
 
         # Retrieve the corresponding label and confidence score
         max_label = results[0].names[int(max_index)]
-        max_score = scores[max_index]
+        max_score = float(scores[max_index])
         
         # Convert to base64
         _, buffer = cv2.imencode('.jpg', result_image)
